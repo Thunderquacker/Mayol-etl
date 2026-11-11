@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETL Data Integration - John Matthew Mayol</title>
+    
+    <!-- Tailwind CSS (via CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PapaParse for CSV Parsing (via CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Lucide Icons (via CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom scrollbar for JSON output */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0d1117; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #484f58; }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-100 text-gray-900 font-sans py-10 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-5xl mx-auto space-y-8">
+        
+        <!-- Header Section -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <div class="flex items-center gap-4 mb-2">
+                <div class="p-3 bg-blue-600 text-white rounded-lg shadow-inner">
+                    <i data-lucide="database" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">John Matthew Mayol</h1>
+                    <p class="text-sm font-medium text-blue-600 tracking-wide uppercase mt-1">IT 3206N [SCHEDULE]</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ingestion Section -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <div class="mb-6">
+                <h2 class="text-xl font-bold text-gray-900">1. Upload Source CSV Files</h2>
+                <p class="text-sm text-gray-500 mt-1">Select the raw data extracts from the institution's distinct databases.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                
+                <!-- SIS Upload Card -->
+                <div id="sis-card" class="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-xl transition-all hover:bg-gray-100 hover:border-blue-400">
+                    <input type="file" accept=".csv" onchange="handleFileUpload('SIS', event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Upload SIS CSV">
+                    <div id="sis-icon"><i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mb-3"></i></div>
+                    <h3 class="font-semibold text-gray-700">Student Info (SIS)</h3>
+                    <p id="sis-status" class="text-xs text-gray-500 text-center mt-1">Upload source_A_SIS.csv</p>
+                </div>
+
+                <!-- LMS Upload Card -->
+                <div id="lms-card" class="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-xl transition-all hover:bg-gray-100 hover:border-blue-400">
+                    <input type="file" accept=".csv" onchange="handleFileUpload('LMS', event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Upload LMS CSV">
+                    <div id="lms-icon"><i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mb-3"></i></div>
+                    <h3 class="font-semibold text-gray-700">Learning (LMS)</h3>
+                    <p id="lms-status" class="text-xs text-gray-500 text-center mt-1">Upload source_B_LMS.csv</p>
+                </div>
+
+                <!-- ACC Upload Card -->
+                <div id="acc-card" class="relative flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-xl transition-all hover:bg-gray-100 hover:border-blue-400">
+                    <input type="file" accept=".csv" onchange="handleFileUpload('ACC', event)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" title="Upload ACC CSV">
+                    <div id="acc-icon"><i data-lucide="upload-cloud" class="w-10 h-10 text-gray-400 mb-3"></i></div>
+                    <h3 class="font-semibold text-gray-700">Accounting</h3>
+                    <p id="acc-status" class="text-xs text-gray-500 text-center mt-1">Upload source_C_Accounting.csv</p>
+                </div>
+
+            </div>
+
+            <!-- Run Button -->
+            <div class="flex flex-col items-center justify-center border-t border-gray-100 pt-8">
+                <button id="run-btn" disabled onclick="executeTransformation()" class="flex items-center gap-2 px-8 py-3 rounded-full font-bold text-lg transition-all shadow-md bg-gray-200 text-gray-400 cursor-not-allowed">
+                    <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                    RUN ETL
+                </button>
+                <p id="status-msg" class="text-xs text-gray-500 mt-3 font-medium">* SIS file is required to build master records</p>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-json" class="w-5 h-5 text-gray-600"></i>
+                    <h2 class="text-xl font-bold text-gray-900">2. JSON Output</h2>
+                </div>
+                
+                <button id="copy-btn" style="display: none;" onclick="copyToClipboard()" class="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors text-gray-700 shadow-sm">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                    Copy JSON
+                </button>
+            </div>
+
+            <div class="p-6 bg-[#0d1117]">
+                <pre id="json-output" class="text-sm font-mono text-[#7ee787] overflow-x-auto leading-relaxed h-[500px] overflow-y-auto custom-scrollbar">
+<div class="flex flex-col items-center justify-center h-48 text-gray-500 space-y-3">
+    <i data-lucide="file-json" class="w-10 h-10 opacity-20"></i>
+    <p class="text-sm font-sans">Upload the CSV files and click RUN ETL to view the transformed payload.</p>
+</div>
+                </pre>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // Data Storage
+        let rawSis = null;
+        let rawLms = null;
+        let rawAcc = null;
+        let transformedData = null;
+
+        // Constants & Helpers
+        const programMap = {
+            'BSIT': 'Bachelor of Science in Information Technology',
+            'BSCS': 'Bachelor of Science in Computer Science',
+            'BSIS': 'Bachelor of Science in Information Systems'
+        };
+
+        const toTitleCase = (str) => {
+            if (!str) return null;
+            return str.trim().toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        };
+
+        const parseGrade = (val) => {
+            if (val === null || val === undefined || String(val).trim() === '') return null;
+            const strVal = String(val).trim();
+            const numVal = parseFloat(strVal);
+            return isNaN(numVal) ? strVal : numVal;
+        };
+
+        // UI Updates for Cards
+        const updateCardUI = (prefix, count) => {
+            const card = document.getElementById(`${prefix}-card`);
+            const icon = document.getElementById(`${prefix}-icon`);
+            const status = document.getElementById(`${prefix}-status`);
+
+            // Apply Green Styles
+            card.classList.remove('border-gray-300', 'bg-gray-50', 'hover:bg-gray-100', 'hover:border-blue-400');
+            card.classList.add('border-green-400', 'bg-green-50');
+            
+            icon.innerHTML = `<i data-lucide="check-circle-2" class="w-10 h-10 text-green-500 mb-3"></i>`;
+            status.innerHTML = `<span class="text-green-700 font-medium">${count} records loaded</span>`;
+            
+            lucide.createIcons();
+        };
+
+        // File Handler
+        const handleFileUpload = (system, event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    if (system === 'SIS') {
+                        rawSis = results.data;
+                        updateCardUI('sis', results.data.length);
+                        
+                        // Enable Run Button
+                        const btn = document.getElementById('run-btn');
+                        btn.disabled = false;
+                        btn.className = "flex items-center gap-2 px-8 py-3 rounded-full font-bold text-lg transition-all shadow-md bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:-translate-y-0.5";
+                        document.getElementById('status-msg').innerText = "Ready for ETL Extraction";
+                    }
+                    if (system === 'LMS') {
+                        rawLms = results.data;
+                        updateCardUI('lms', results.data.length);
+                    }
+                    if (system === 'ACC') {
+                        rawAcc = results.data;
+                        updateCardUI('acc', results.data.length);
+                    }
+                }
+            });
+        };
+
+        // ETL Logic
+        const executeTransformation = () => {
+            if (!rawSis) return;
+
+            const lmsData = rawLms || [];
+            const accData = rawAcc || [];
+
+            transformedData = rawSis.map(sisRow => {
+                const sId = parseInt(String(sisRow.student_id).trim(), 10);
+                const lmsRow = lmsData.find(row => parseInt(String(row.student_id).trim(), 10) === sId) || {};
+                const accRow = accData.find(row => parseInt(String(row.student_id).trim(), 10) === sId) || {};
+
+                return {
+                    studentId: sId,
+                    studentName: toTitleCase(sisRow.student_name),
+                    program: sisRow.program_code ? (programMap[String(sisRow.program_code).trim().toUpperCase()] || String(sisRow.program_code).trim().toUpperCase()) : null,
+                    emailAddress: sisRow.email ? String(sisRow.email).trim().toLowerCase() : null,
+                    courseCode: lmsRow.course_code ? String(lmsRow.course_code).trim().toUpperCase() : null,
+                    finalGrade: parseGrade(lmsRow.final_grade),
+                    completionStatus: lmsRow.completion_status ? String(lmsRow.completion_status).trim().charAt(0).toUpperCase() + String(lmsRow.completion_status).trim().slice(1).toLowerCase() : null,
+                    outstandingBalance: accRow.account_balance ? parseFloat(String(accRow.account_balance).trim()) : null,
+                    currency: accRow.currency ? String(accRow.currency).trim().toUpperCase() : null
+                };
+            });
+
+            // Print JSON to screen
+            document.getElementById('json-output').innerHTML = `<code>${JSON.stringify(transformedData, null, 2)}</code>`;
+            document.getElementById('copy-btn').style.display = 'flex';
+            
+            // Scroll down to view the output
+            document.getElementById('json-output').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
+        // Copy Feature
+        const copyToClipboard = () => {
+            if (transformedData) {
+                navigator.clipboard.writeText(JSON.stringify(transformedData, null, 2));
+                const copyBtn = document.getElementById('copy-btn');
+                copyBtn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4 text-green-500"></i> Copied!`;
+                lucide.createIcons();
+                
+                setTimeout(() => {
+                    copyBtn.innerHTML = `<i data-lucide="copy" class="w-4 h-4"></i> Copy JSON`;
+                    lucide.createIcons();
+                }, 2000);
+            }
+        };
+    </script>
+</body>
+</html>
